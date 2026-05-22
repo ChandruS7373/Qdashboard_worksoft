@@ -14,6 +14,7 @@ from urllib.parse import quote as urlquote
 import auth
 import email_utils
 import gsheets
+import github_sync
 
 
 def _load_logo_b64() -> str:
@@ -40,11 +41,17 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
+github_sync.ensure_db_downloaded()
+github_sync.start_sync_thread()
+
 if "db_initialized" not in st.session_state:
     auth.init_db()
     st.session_state.db_initialized = True
-    import api_server as _api
-    _api.start_background(port=8503)
+    try:
+        import api_server as _api
+        _api.start_background(port=8503)
+    except ImportError:
+        pass
 
 if hasattr(email_utils, "start_license_notification_scheduler"):
     email_utils.start_license_notification_scheduler()
