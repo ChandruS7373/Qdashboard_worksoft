@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.env
+.streamlit/secrets.toml
+.ngrok_token
+
+# Virtual environment
+Project_Tracker/
