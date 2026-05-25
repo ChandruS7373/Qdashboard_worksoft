@@ -4215,10 +4215,10 @@ if st.session_state.active_tab == "dashboard" and role not in ("employee",):
             _wpt_html = (
                 '<div style="background:#fff;border:1px solid #E2E8F0;border-radius:14px;'
                 'overflow:hidden;animation:fadeInUp 0.5s ease both">'
-                '<div style="display:grid;grid-template-columns:0.5fr 2fr 1.2fr 1.2fr 1fr 1fr 1fr;'
+                '<div style="display:grid;grid-template-columns:0.5fr 2fr 1.2fr 1.2fr 1fr 0.9fr 0.9fr 1fr 1fr;'
                 'background:#F8FAFC;padding:10px 16px;border-bottom:2px solid #E2E8F0">'
             )
-            for _wph_lbl in ["#", "Project", "Client", "Lead", "Status", "Logged", "Allocated"]:
+            for _wph_lbl in ["#", "Project", "Client", "Lead", "Status", "Start", "End", "Logged", "Allocated"]:
                 _wpt_html += (
                     f'<div style="font-size:9px;font-weight:700;color:#94A3B8;'
                     f'text-transform:uppercase;letter-spacing:.6px">{_wph_lbl}</div>'
@@ -4232,8 +4232,10 @@ if st.session_state.active_tab == "dashboard" and role not in ("employee",):
                 _wp_stc   = _wsd_stcols.get(_wp_st, "#94A3B8")
                 _wp_rc    = "#DC2626" if _wp_alloc > 0 and _wp_log >= _wp_alloc else "#16A34A" if _wp_alloc > 0 else "#64748B"
                 _wp_bg    = "#FAFAFA" if _wi % 2 == 1 else "#FFFFFF"
+                _wp_start = fmt_date(str(_wprow.get("start", "") or "")) or "—"
+                _wp_end   = fmt_date(str(_wprow.get("end", "") or "")) or "—"
                 _wpt_html += (
-                    f'<div style="display:grid;grid-template-columns:0.5fr 2fr 1.2fr 1.2fr 1fr 1fr 1fr;'
+                    f'<div style="display:grid;grid-template-columns:0.5fr 2fr 1.2fr 1.2fr 1fr 0.9fr 0.9fr 1fr 1fr;'
                     f'padding:10px 16px;border-bottom:1px solid #F1F5F9;background:{_wp_bg};align-items:center">'
                     f'<div style="font-size:10px;color:#94A3B8">{esc(str(_wprow.get("id","")))}</div>'
                     f'<div style="font-size:12px;font-weight:700;color:#1F3B4D">{esc(str(_wprow.get("name","")))}</div>'
@@ -4242,12 +4244,76 @@ if st.session_state.active_tab == "dashboard" and role not in ("employee",):
                     f'<div><span style="font-size:10px;font-weight:700;color:{_wp_stc};'
                     f'background:{_wp_stc}15;padding:2px 8px;border-radius:12px;border:1px solid {_wp_stc}30">'
                     f'{esc(_wp_st)}</span></div>'
+                    f'<div style="font-size:11px;color:#475569">{esc(_wp_start)}</div>'
+                    f'<div style="font-size:11px;color:#475569">{esc(_wp_end)}</div>'
                     f'<div style="font-size:12px;font-weight:700;color:{_wp_rc}">{_wp_log:.1f}h</div>'
                     f'<div style="font-size:11px;color:#64748B">{"&mdash;" if _wp_alloc == 0 else f"{_wp_alloc:.0f}h"}</div>'
                     f'</div>'
                 )
             _wpt_html += '</div>'
             st.markdown(_wpt_html, unsafe_allow_html=True)
+
+        # ── Individual Hours by Project & Employee ────────────────────────────────
+        if _wsd_all_punches:
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown(
+                '<div style="font-size:9px;color:#94A3B8;font-weight:600;text-transform:uppercase;'
+                'letter-spacing:.8px;margin-bottom:12px">Individual Hours · Per Project Per Employee</div>',
+                unsafe_allow_html=True,
+            )
+            # build {project_name: {employee: hours}}
+            _iph_data = {}
+            for _ip in _wsd_all_punches:
+                _ipn = _ip.get("project_name", "")
+                _ien = _ip.get("user_name", "")
+                _iph_data.setdefault(_ipn, {})
+                _iph_data[_ipn][_ien] = _iph_data[_ipn].get(_ien, 0.0) + float(_ip.get("hours_worked", 0))
+            _iph_pal = ["#3F8E91","#8B5CF6","#F59E0B","#10B981","#3B82F6","#EC4899","#0EA5E9","#EF4444"]
+            for _ipname, _ip_emp_hrs in _iph_data.items():
+                _ip_total = sum(_ip_emp_hrs.values())
+                _ip_max   = max(_ip_emp_hrs.values(), default=1)
+                _iph_html = (
+                    f'<div style="background:#fff;border:1px solid #E2E8F0;border-radius:14px;'
+                    f'overflow:hidden;margin-bottom:14px;animation:fadeInUp 0.5s ease both">'
+                    f'<div style="background:#F8FAFC;padding:10px 16px;border-bottom:2px solid #E2E8F0;'
+                    f'display:flex;justify-content:space-between;align-items:center">'
+                    f'<span style="font-size:12px;font-weight:800;color:#1F3B4D">{esc(_ipname)}</span>'
+                    f'<span style="font-size:11px;font-weight:700;color:#0369A1">{_ip_total:.1f}h total</span>'
+                    f'</div>'
+                    f'<div style="display:grid;grid-template-columns:2fr 1fr 1fr 3fr;'
+                    f'background:#F8FAFC;padding:8px 16px;border-bottom:1px solid #E2E8F0">'
+                )
+                for _lbl in ["Employee", "Hours", "Share", "Breakdown"]:
+                    _iph_html += (
+                        f'<div style="font-size:9px;font-weight:700;color:#94A3B8;'
+                        f'text-transform:uppercase;letter-spacing:.6px">{_lbl}</div>'
+                    )
+                _iph_html += '</div>'
+                for _iei, (_emp, _ehrs) in enumerate(sorted(_ip_emp_hrs.items(), key=lambda x: x[1], reverse=True)):
+                    _share_pct = (_ehrs / max(_ip_total, 1)) * 100
+                    _bar_pct   = (_ehrs / max(_ip_max, 1)) * 100
+                    _ec        = _iph_pal[_iei % len(_iph_pal)]
+                    _ebg       = "#FAFAFA" if _iei % 2 == 1 else "#FFFFFF"
+                    _einit     = esc(_emp[0].upper()) if _emp else "?"
+                    _iph_html += (
+                        f'<div style="display:grid;grid-template-columns:2fr 1fr 1fr 3fr;'
+                        f'padding:10px 16px;border-bottom:1px solid #F1F5F9;background:{_ebg};align-items:center">'
+                        f'<div style="display:flex;align-items:center;gap:8px">'
+                        f'<div style="width:28px;height:28px;border-radius:50%;background:{_ec}20;'
+                        f'border:1px solid {_ec}40;display:flex;align-items:center;justify-content:center;'
+                        f'font-size:11px;font-weight:800;color:{_ec}">{_einit}</div>'
+                        f'<span style="font-size:12px;font-weight:600;color:#1F3B4D">{esc(_emp)}</span>'
+                        f'</div>'
+                        f'<div style="font-size:13px;font-weight:700;color:{_ec}">{_ehrs:.1f}h</div>'
+                        f'<div style="font-size:11px;color:#64748B">{_share_pct:.0f}%</div>'
+                        f'<div style="background:#F1F5F9;border-radius:6px;height:8px;overflow:hidden">'
+                        f'<div style="width:{_bar_pct:.0f}%;background:{_ec};height:8px;border-radius:6px;'
+                        f'transition:width 0.8s cubic-bezier(.4,0,.2,1)"></div>'
+                        f'</div>'
+                        f'</div>'
+                    )
+                _iph_html += '</div>'
+                st.markdown(_iph_html, unsafe_allow_html=True)
         else:
             st.markdown(
                 '<div style="text-align:center;padding:24px;color:#94A3B8;font-size:11px;'
@@ -4450,6 +4516,8 @@ if st.session_state.active_tab == "dashboard" and role not in ("employee",):
                         if _wph_rem is not None and _wph_rem < 0
                         else (f'{_wph_rem:.1f}h left' if _wph_rem is not None else '—')
                     )
+                    _wph_start = fmt_date(str(_wph_row.get("start", "") or "")) or "—"
+                    _wph_end   = fmt_date(str(_wph_row.get("end",   "") or "")) or "—"
                     with _wph_cols[_wph_ci]:
                         st.markdown(
                             f'<div style="background:#fff;border:1.5px solid #E2E8F0;'
@@ -4468,6 +4536,8 @@ if st.session_state.active_tab == "dashboard" and role not in ("employee",):
                             f'<div><span style="font-size:9px;font-weight:700;color:{_wph_stc};'
                             f'background:{_wph_stc}15;padding:1px 7px;border-radius:10px;'
                             f'border:1px solid {_wph_stc}30">{esc(_wph_st)}</span></div>'
+                            f'<div style="font-size:9px;color:#94A3B8;margin-top:3px">'
+                            f'{esc(_wph_start)} → {esc(_wph_end)}</div>'
                             f'</div></div>'
                             # health badge
                             f'<div style="display:inline-flex;align-items:center;gap:5px;'
@@ -5994,6 +6064,13 @@ elif st.session_state.active_tab == "projects" and role not in ("employee",):
                     "Allocated Hours", min_value=0.0, step=0.5, value=0.0, key="ws_add_hours"
                 )
                 _ws_add_status = _wse.selectbox("Status", WS_STATUSES, key="ws_add_status")
+                _wsf, _wsg = st.columns(2)
+                _ws_start_date = _wsf.date_input(
+                    "Start Date", value=None, format="DD/MM/YYYY", key="ws_add_start"
+                )
+                _ws_end_date = _wsg.date_input(
+                    "End Date", value=None, format="DD/MM/YYYY", key="ws_add_end"
+                )
                 if st.button("Add Worksoft Project", type="primary", key="ws_add_submit"):
                     if not _ws_client.strip():
                         st.error("Client name is required.")
@@ -6024,6 +6101,8 @@ elif st.session_state.active_tab == "projects" and role not in ("employee",):
                             "is_new": False,
                             "allocated_hours": _ws_alloc_hrs,
                             "project_lead_email": _ws_sel_lead_email,
+                            "start": _ws_start_date.strftime("%Y-%m-%d") if _ws_start_date else "",
+                            "end":   _ws_end_date.strftime("%Y-%m-%d")   if _ws_end_date   else "",
                         })
                         st.session_state.projects = pd.concat(
                             [st.session_state.projects, pd.DataFrame([_ws_base_rec])],
